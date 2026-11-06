@@ -1,4 +1,4 @@
-// Sumi: a Markdown preview that matches Zed's, built on the RAD Debugger
+// Seer: a Markdown preview that matches Zed's, built on the RAD Debugger
 // layers (base -> window_manager -> font_provider -> render -> font_cache ->
 // draw).
 //
@@ -11,14 +11,14 @@
 //   outline_panel/         the headings sidebar             (crates/outline_panel)
 //   recent_panel/          the recent files sidebar         (crates/sidebar)
 //   icons/                 Zed's SVG icons                  (assets/icons, crates/ui Icon)
-//   sumi_main.c            window, events, frame loop       (crates/zed/src/main.rs)
+//   seer_main.c            window, events, frame loop       (crates/zed/src/main.rs)
 //
 // reference/ZED_MARKDOWN_PREVIEW.md describes the Zed side.
 
 ////////////////////////////////
 //~ Build Options
 
-#define BUILD_TITLE "Sumi"
+#define BUILD_TITLE "Seer"
 #define OS_FEATURE_GRAPHICAL 1
 
 ////////////////////////////////
@@ -98,16 +98,16 @@ global MV_State *mv = 0;
 //~ Welcome Document
 
 read_only global String8 mv_welcome_text = str8_lit_comp(
-"# Sumi\n"
+"# Seer\n"
 "\n"
 "A Markdown preview that renders like **Zed's**, on the *RAD Debugger* layers.\n"
 "\n"
 "## Opening files\n"
 "\n"
-"- Pass a path on the command line: `sumi README.md`\n"
+"- Pass a path on the command line: `seer README.md`\n"
 "- Press `Ctrl+O` to pick a file, or drop a `.md` file on this window\n"
 "- The preview reloads when the file changes on disk\n"
-"- Started without a path, Sumi reopens the last file\n"
+"- Started without a path, Seer reopens the last file\n"
 "- Recent files are listed in the sidebar; click one to open it\n"
 "\n"
 "## Keys\n"
@@ -584,7 +584,7 @@ mv_update_title(void)
   Temp scratch = scratch_begin(0, 0);
   String8 name = mv->view.name.size ? mv->view.name : str8_lit("Welcome");
   // Zed's preview tab title
-  wm_window_set_title(mv->os, push_str8f(scratch.arena, "Preview %S - Sumi", name));
+  wm_window_set_title(mv->os, push_str8f(scratch.arena, "Preview %S - Seer", name));
   scratch_end(scratch);
 }
 
@@ -773,7 +773,7 @@ entry_point(CmdLine *cmdline)
   rp_recent_load(&mv->recent);
   mv->caption_pressed = -1;
 
-  mv->os = wm_window_open(r2f32p(0, 0, 1100, 900), WM_WindowFlag_UseDefaultPosition|WM_WindowFlag_CustomBorder, str8_lit("Sumi"));
+  mv->os = wm_window_open(r2f32p(0, 0, 1100, 900), WM_WindowFlag_UseDefaultPosition|WM_WindowFlag_CustomBorder, str8_lit("Seer"));
   mv->r = r_window_equip(mv->os);
   mv_load_fonts(&mv->view.fonts);
 

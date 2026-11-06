@@ -1,7 +1,7 @@
-# Sumi
+# Seer
 
-Sumi (墨, "ink") is a Markdown viewer that matches Zed's markdown preview, built
-on the [RAD Debugger](https://github.com/EpicGamesExt/raddebugger) UI layers.
+Seer (சீர், Tamil for "order, excellence; to set right") is a Markdown
+viewer that matches Zed's markdown preview, built on the [RAD Debugger](https://github.com/EpicGamesExt/raddebugger) UI layers.
 
 ## Download
 
@@ -12,12 +12,12 @@ Unzip and keep `data/` next to the executable: it holds the fonts and icons.
 ## Build
 
 ```sh
-git clone --recursive https://github.com/abishek77s/sumi
+git clone --recursive https://github.com/abishek77s/seer
 ```
 
-Windows: `build.bat release [msvc|clang]` → `build\sumi.exe`
+Windows: `build.bat release [msvc|clang]` → `build\seer.exe`
 
-Linux: install the dev packages, then `./build.sh release [clang|gcc]` → `build/sumi`
+Linux: install the dev packages, then `./build.sh release [clang|gcc]` → `build/seer`
 
 ```sh
 sudo apt install clang pkg-config libfreetype6-dev libx11-dev libxext-dev \

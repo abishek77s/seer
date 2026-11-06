@@ -1,9 +1,10 @@
 ////////////////////////////////
 //~ Recent Files
 //
-// One path per line in <config>/sumi/recent_files, most recent first. When
-// that file is missing, the list that mdview (Sumi's old name) wrote to
-// <config>/mdview seeds it: its recent_files, else its older last_file.
+// One path per line in <config>/seer/recent_files, most recent first. When
+// that file is missing, the list written under one of Seer's old names seeds
+// it: <config>/sumi/recent_files, else <config>/mdview/recent_files, else
+// mdview's older last_file.
 
 internal String8
 rp_config_path(Arena *arena, String8 app, String8 name)
@@ -38,7 +39,7 @@ rp_recent_save(RP_Panel *panel)
   String8List lines = {0};
   for EachIndex(i, panel->path_count) { str8_list_push(scratch.arena, &lines, panel->paths[i]); }
   StringJoin join = {str8_zero(), str8_lit("\n"), str8_lit("\n")};
-  String8 file = rp_config_path(scratch.arena, str8_lit("sumi"), str8_lit("recent_files"));
+  String8 file = rp_config_path(scratch.arena, str8_lit("seer"), str8_lit("recent_files"));
   make_directory(str8_chop_last_slash(file));
   write_data_to_file_path(file, str8_list_join(scratch.arena, &lines, &join));
   scratch_end(scratch);
@@ -48,7 +49,8 @@ internal void
 rp_recent_load(RP_Panel *panel)
 {
   Temp scratch = scratch_begin(0, 0);
-  String8 data = data_from_file_path(scratch.arena, rp_config_path(scratch.arena, str8_lit("sumi"), str8_lit("recent_files")));
+  String8 data = data_from_file_path(scratch.arena, rp_config_path(scratch.arena, str8_lit("seer"), str8_lit("recent_files")));
+  if(data.size == 0) { data = data_from_file_path(scratch.arena, rp_config_path(scratch.arena, str8_lit("sumi"), str8_lit("recent_files"))); }
   if(data.size == 0) { data = data_from_file_path(scratch.arena, rp_config_path(scratch.arena, str8_lit("mdview"), str8_lit("recent_files"))); }
   if(data.size == 0) { data = data_from_file_path(scratch.arena, rp_config_path(scratch.arena, str8_lit("mdview"), str8_lit("last_file"))); }
   U8 splits[] = {'\n', '\r'};

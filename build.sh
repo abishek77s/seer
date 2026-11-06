@@ -1,5 +1,5 @@
 #!/bin/bash
-# Builds Sumi on Linux against the RAD Debugger sources, the way its build.sh
+# Builds Seer on Linux against the RAD Debugger sources, the way its build.sh
 # does.
 # Usage: ./build.sh [debug|release] [clang|gcc]     (default: debug clang)
 #        CC=clang-22 ./build.sh release clang     picks a specific compiler
@@ -17,7 +17,7 @@ if [[ -f external/raddebugger/src/base/base_inc.h ]]; then rad=external/raddebug
 elif [[ -f ../raddebugger/src/base/base_inc.h ]]; then rad=../raddebugger
 else echo "[error: RAD Debugger sources not found; run: git submodule update --init]"; exit 1; fi
 
-# Apply Sumi's patches to it once.
+# Apply Seer's patches to it once.
 for p in patches/*.patch; do
   if git -C "$rad" apply --ignore-whitespace --check "$PWD/$p" 2>/dev/null; then
     git -C "$rad" apply --ignore-whitespace "$PWD/$p" && echo "[applied $p]"
@@ -42,5 +42,5 @@ else
 fi
 
 mkdir -p build
-$compiler $opts $cc_common sumi_main.c $libs -lpthread -lm -lrt -ldl -latomic -o build/sumi
-echo "[built build/sumi]"
+$compiler $opts $cc_common seer_main.c $libs -lpthread -lm -lrt -ldl -latomic -o build/seer
+echo "[built build/seer]"

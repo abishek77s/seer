@@ -5,7 +5,7 @@
 #ifndef OUTLINE_PANEL_SETTINGS_H
 #define OUTLINE_PANEL_SETTINGS_H
 
-#define OP_DEFAULT_WIDTH_PX   300.f   // default_width (docked left here, as Sumi's sidebar was)
+#define OP_DEFAULT_WIDTH_PX   300.f   // default_width (docked left here, as Seer's sidebar was)
 #define OP_MIN_WIDTH_PX       120.f
 #define OP_INDENT_SIZE_PX     20.f    // indent_size
 #define OP_ROW_HEIGHT_PX      26.f    // h_6 label box + border_1 top and bottom

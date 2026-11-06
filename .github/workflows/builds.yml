@@ -15,7 +15,7 @@ on:
   workflow_dispatch:
 
 env:
-  # RAD Debugger keeps test binaries in LFS; Sumi needs none of them.
+  # RAD Debugger keeps test binaries in LFS; Seer needs none of them.
   GIT_LFS_SKIP_SMUDGE: 1
 
 jobs:
@@ -29,7 +29,7 @@ jobs:
           - clang-22
           - gcc
 
-    name: sumi-${{ matrix.compiler }}-ubuntu24
+    name: seer-${{ matrix.compiler }}-ubuntu24
 
     steps:
       - name: Checkout
@@ -76,19 +76,19 @@ jobs:
         if: ${{ matrix.compiler == 'gcc' }}
         shell: bash
         run: |
-          d=dist/sumi-linux-x64
+          d=dist/seer-linux-x64
           mkdir -p "$d/data/fonts"
-          cp build/sumi "$d/"
+          cp build/seer "$d/"
           cp data/fonts/* "$d/data/fonts/"
           cp external/raddebugger/data/icons.ttf "$d/data/"
-          tar -C dist -czf dist/sumi-linux-x64.tar.gz sumi-linux-x64
+          tar -C dist -czf dist/seer-linux-x64.tar.gz seer-linux-x64
 
       - name: Upload Artifacts
         if: ${{ matrix.compiler == 'gcc' }}
         uses: actions/upload-artifact@v7
         with:
-          name: sumi-linux-x64
-          path: dist/sumi-linux-x64.tar.gz
+          name: seer-linux-x64
+          path: dist/seer-linux-x64.tar.gz
 
   build-windows-vs2022:
     runs-on: windows-2022
@@ -99,7 +99,7 @@ jobs:
           - msvc
           - clang
 
-    name: sumi-${{ matrix.compiler }}-vs2022
+    name: seer-${{ matrix.compiler }}-vs2022
 
     steps:
       - name: Checkout
@@ -121,26 +121,26 @@ jobs:
         # machines with "The ordinal 345 could not be located".
         shell: pwsh
         run: |
-          $text = [Text.Encoding]::ASCII.GetString([IO.File]::ReadAllBytes("build\sumi.exe"))
-          if (-not $text.Contains("Microsoft.Windows.Common-Controls")) { throw "manifest not embedded in sumi.exe" }
-          if (Test-Path build\sumi.exe.manifest) { throw "manifest written as a side file" }
+          $text = [Text.Encoding]::ASCII.GetString([IO.File]::ReadAllBytes("build\seer.exe"))
+          if (-not $text.Contains("Microsoft.Windows.Common-Controls")) { throw "manifest not embedded in seer.exe" }
+          if (Test-Path build\seer.exe.manifest) { throw "manifest written as a side file" }
           Write-Host "embedded manifest OK"
       - name: Package
         if: ${{ matrix.compiler == 'msvc' }}
         shell: pwsh
         run: |
-          $d = "dist\sumi-windows-x64"
+          $d = "dist\seer-windows-x64"
           New-Item -ItemType Directory -Force "$d\data\fonts" | Out-Null
-          Copy-Item build\sumi.exe $d
+          Copy-Item build\seer.exe $d
           Copy-Item data\fonts\* "$d\data\fonts"
           Copy-Item external\raddebugger\data\icons.ttf "$d\data"
-          Compress-Archive -Path "$d\*" -DestinationPath dist\sumi-windows-x64.zip
+          Compress-Archive -Path "$d\*" -DestinationPath dist\seer-windows-x64.zip
       - name: Upload Artifacts
         if: ${{ matrix.compiler == 'msvc' }}
         uses: actions/upload-artifact@v7
         with:
-          name: sumi-windows-x64
-          path: dist/sumi-windows-x64.zip
+          name: seer-windows-x64
+          path: dist/seer-windows-x64.zip
 
   build-windows-vs2026:
     runs-on: windows-2025
@@ -151,7 +151,7 @@ jobs:
           - msvc
           - clang
 
-    name: sumi-${{ matrix.compiler }}-vs2026
+    name: seer-${{ matrix.compiler }}-vs2026
 
     steps:
       - name: Checkout
