@@ -1,0 +1,3 @@
+[submodule "external/raddebugger"]
+	path = external/raddebugger
+	url = https://github.com/EpicGamesExt/raddebugger.git

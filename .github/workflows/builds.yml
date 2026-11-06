@@ -1,0 +1,186 @@
+name: builds
+
+# Follows RAD Debugger's .github/workflows/builds.yml: the same runners,
+# compilers and debug + release builds, plus packaged downloads and releases.
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+    paths-ignore:
+      - '**.md'
+  pull_request:
+    paths-ignore:
+      - '**.md'
+  workflow_dispatch:
+
+env:
+  # RAD Debugger keeps test binaries in LFS; mdview needs none of them.
+  GIT_LFS_SKIP_SMUDGE: 1
+
+jobs:
+  build-ubuntu-24:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler:
+          - clang-17
+          - clang-22
+          - gcc
+
+    name: mdview-${{ matrix.compiler }}-ubuntu24
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - name: Install Common Dependencies
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y pkg-config libfreetype6-dev libx11-dev libxext-dev libxfixes-dev libxrandr-dev libgl1-mesa-dev libegl1-mesa-dev
+
+      - name: Install clang-17 Dependencies
+        if: ${{ matrix.compiler == 'clang-17' }}
+        shell: bash
+        run: |
+          sudo apt-get install --no-install-recommends -y clang-17 lld-17 llvm-17
+          echo CC="${{ matrix.compiler }}" >> "${GITHUB_ENV}"
+
+      - name: Install clang-22 Dependencies
+        if: ${{ matrix.compiler == 'clang-22' }}
+        shell: bash
+        run: |
+          wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
+          sudo apt-add-repository -y "deb http://apt.llvm.org/noble/ llvm-toolchain-noble-22 main"
+          sudo apt-get update
+          sudo apt-get install -y clang-22 lld-22 llvm-22
+          echo CC="${{ matrix.compiler }}" >> "${GITHUB_ENV}"
+
+      - name: Build (debug)
+        shell: bash
+        run: |
+          export CC_BUILD="${{ matrix.compiler }}"
+          ./build.sh debug ${CC_BUILD%%-*}
+
+      - name: Build (release)
+        shell: bash
+        run: |
+          export CC_BUILD="${{ matrix.compiler }}"
+          ./build.sh release ${CC_BUILD%%-*}
+
+      - name: Package
+        if: ${{ matrix.compiler == 'gcc' }}
+        shell: bash
+        run: |
+          d=dist/mdview-linux-x64
+          mkdir -p "$d/data/fonts"
+          cp build/mdview "$d/"
+          cp data/fonts/* "$d/data/fonts/"
+          cp external/raddebugger/data/icons.ttf "$d/data/"
+          tar -C dist -czf dist/mdview-linux-x64.tar.gz mdview-linux-x64
+
+      - name: Upload Artifacts
+        if: ${{ matrix.compiler == 'gcc' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: mdview-linux-x64
+          path: dist/mdview-linux-x64.tar.gz
+
+  build-windows-vs2022:
+    runs-on: windows-2022
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler:
+          - msvc
+          - clang
+
+    name: mdview-${{ matrix.compiler }}-vs2022
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          submodules: recursive
+      - name: Build (debug)
+        shell: cmd
+        run: |
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" x64 || exit /b 1
+          call build "${{ matrix.compiler }}" debug                                                       || exit /b 1
+      - name: Build (release)
+        shell: cmd
+        run: |
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" x64 || exit /b 1
+          call build "${{ matrix.compiler }}" release                                                     || exit /b 1
+      - name: Check the manifest is embedded
+        # Without the embedded Common-Controls v6 manifest the exe fails on other
+        # machines with "The ordinal 345 could not be located".
+        shell: pwsh
+        run: |
+          $text = [Text.Encoding]::ASCII.GetString([IO.File]::ReadAllBytes("build\mdview.exe"))
+          if (-not $text.Contains("Microsoft.Windows.Common-Controls")) { throw "manifest not embedded in mdview.exe" }
+          if (Test-Path build\mdview.exe.manifest) { throw "manifest written as a side file" }
+          Write-Host "embedded manifest OK"
+      - name: Package
+        if: ${{ matrix.compiler == 'msvc' }}
+        shell: pwsh
+        run: |
+          $d = "dist\mdview-windows-x64"
+          New-Item -ItemType Directory -Force "$d\data\fonts" | Out-Null
+          Copy-Item build\mdview.exe $d
+          Copy-Item data\fonts\* "$d\data\fonts"
+          Copy-Item external\raddebugger\data\icons.ttf "$d\data"
+          Compress-Archive -Path "$d\*" -DestinationPath dist\mdview-windows-x64.zip
+      - name: Upload Artifacts
+        if: ${{ matrix.compiler == 'msvc' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: mdview-windows-x64
+          path: dist/mdview-windows-x64.zip
+
+  build-windows-vs2026:
+    runs-on: windows-2025
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler:
+          - msvc
+          - clang
+
+    name: mdview-${{ matrix.compiler }}-vs2026
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          submodules: recursive
+      - name: Build (debug)
+        shell: cmd
+        run: |
+          call "C:\Program Files\Microsoft Visual Studio\18\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" x64 || exit /b 1
+          call build "${{ matrix.compiler }}" debug                                                     || exit /b 1
+      - name: Build (release)
+        shell: cmd
+        run: |
+          call "C:\Program Files\Microsoft Visual Studio\18\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" x64 || exit /b 1
+          call build "${{ matrix.compiler }}" release                                                   || exit /b 1
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [build-ubuntu-24, build-windows-vs2022, build-windows-vs2026]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --generate-notes
