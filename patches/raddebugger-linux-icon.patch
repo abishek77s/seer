@@ -1,0 +1,32 @@
+diff --git a/src/linux/window_manager/linux_window_manager.c b/src/linux/window_manager/linux_window_manager.c
+index 72c85ea2..963b63fc 100644
+--- a/src/linux/window_manager/linux_window_manager.c
++++ b/src/linux/window_manager/linux_window_manager.c
+@@ -444,7 +444,12 @@ wm_init(void)
+     // rjf: unpack icon image data
+     {
+       Temp scratch = scratch_begin(0, 0);
++#if defined(LNX_WM_ICON_FILE_BYTES)
++      // an app built on these layers can supply its own .ico
++      String8 data = LNX_WM_ICON_FILE_BYTES;
++#else
+       String8 data = lnx_wm_icon_file_bytes;
++#endif
+       U8 *ptr = data.str;
+       U8 *opl = ptr+data.size;
+       
+@@ -541,8 +546,12 @@ wm_init(void)
+         {
+           U32 *src_pixel = (U32 *)image_data + pixel_idx;
+           long *dst_pixel = &(lnx_wm_state->icon_image_data + 2)[pixel_idx];
+-          dst_pixel[0] |= (src_pixel[0] & 0x000000ffu) << 24;
+-          dst_pixel[0] |= (src_pixel[0] & 0xffffff00u) >> 8;
++          // stbi gives R,G,B,A bytes; _NET_WM_ICON wants 0xAARRGGBB
++          U32 r = (src_pixel[0] >>  0) & 0xffu;
++          U32 g = (src_pixel[0] >>  8) & 0xffu;
++          U32 b = (src_pixel[0] >> 16) & 0xffu;
++          U32 a = (src_pixel[0] >> 24) & 0xffu;
++          dst_pixel[0] = (long)((a << 24) | (r << 16) | (g << 8) | b);
+         }
+       }
+       

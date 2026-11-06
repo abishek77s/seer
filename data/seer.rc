@@ -1,0 +1,2 @@
+// The app icon, resource 1: the window class loads it with LoadIcon(MAKEINTRESOURCE(1)).
+1 ICON "seer.ico"

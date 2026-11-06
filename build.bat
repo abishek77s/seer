@@ -41,14 +41,17 @@ set clang_common=-mcx16 -I..\%rad%\src -I.. -fdiagnostics-absolute-paths -Wall -
 set clang_debug=-g -gcodeview -O0 -DBUILD_DEBUG=1 -D_DEBUG
 set clang_release=-O2 -DBUILD_DEBUG=0 -DNDEBUG
 
+:: The app icon (data\seer.ico) goes into the exe as resource 1.
 if not exist build mkdir build
 pushd build
+if "%clang%"=="1" (set rc=llvm-rc) else (set rc=rc)
+call %rc% /nologo /fo seer.res ..\data\seer.rc || (popd & exit /b 1)
 if "%clang%"=="1" (
     if "%release%"=="1" (set opts=%clang_release%) else (set opts=%clang_debug%)
-    call clang %%opts%% %clang_common% ..\seer_main.c -fuse-ld=lld -Xlinker /MANIFEST:EMBED -Xlinker /INCREMENTAL:NO -Xlinker /SUBSYSTEM:WINDOWS -Xlinker /opt:ref -o seer.exe || (popd & exit /b 1)
+    call clang %%opts%% %clang_common% ..\seer_main.c seer.res -fuse-ld=lld -Xlinker /MANIFEST:EMBED -Xlinker /INCREMENTAL:NO -Xlinker /SUBSYSTEM:WINDOWS -Xlinker /opt:ref -o seer.exe || (popd & exit /b 1)
 ) else (
     if "%release%"=="1" (set opts=%cl_release%& set linkopts=%cl_link_release%) else (set opts=%cl_debug%& set linkopts=%cl_link_debug%)
-    call cl %%opts%% %cl_common% ..\seer_main.c /link %%linkopts%% /MANIFEST:EMBED /INCREMENTAL:NO /SUBSYSTEM:WINDOWS /out:seer.exe || (popd & exit /b 1)
+    call cl %%opts%% %cl_common% ..\seer_main.c seer.res /link %%linkopts%% /MANIFEST:EMBED /INCREMENTAL:NO /SUBSYSTEM:WINDOWS /out:seer.exe || (popd & exit /b 1)
 )
 popd
 echo [built build\seer.exe]

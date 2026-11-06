@@ -21,6 +21,12 @@
 #define BUILD_TITLE "Seer"
 #define OS_FEATURE_GRAPHICAL 1
 
+// The window icon on Linux: icons/app_icon.h, data/seer.ico as bytes. (On
+// Windows, seer.rc puts the .ico in the exe as icon resource 1, which the
+// window class loads.) Needs patches/raddebugger-linux-icon.patch.
+#define LNX_WM_ICON 1
+#define LNX_WM_ICON_FILE_BYTES seer_app_icon_ico
+
 ////////////////////////////////
 //~ Includes
 
@@ -39,14 +45,11 @@
 #include "outline_panel/outline_panel_inc.h"
 #include "recent_panel/recent_panel_inc.h"
 
+#include "icons/app_icon.h"
+
 //- [c]
-#include "base/base_inc.c"
-#include "window_manager/window_manager_inc.c"
-#include "shell/shell_inc.c"
-#include "font_provider/font_provider_inc.c"
-#include "render/render_inc.c"
-#include "font_cache/font_cache.c"
-#include "draw/draw.c"
+// stb_image first: the Linux window layer includes its own PNG/BMP-only
+// stb_image for the icon unless one is already in.
 #if !defined(STBI_INCLUDE_STB_IMAGE_H)
 # define STB_IMAGE_IMPLEMENTATION
 # define STBI_NO_STDIO
@@ -56,6 +59,13 @@
 # define STBI_ONLY_BMP
 # include "third_party/stb/stb_image.h"
 #endif
+#include "base/base_inc.c"
+#include "window_manager/window_manager_inc.c"
+#include "shell/shell_inc.c"
+#include "font_provider/font_provider_inc.c"
+#include "render/render_inc.c"
+#include "font_cache/font_cache.c"
+#include "draw/draw.c"
 #if !defined(NANOSVG_H)
 # pragma warning(push)
 # pragma warning(disable: 4456 4457 4701 4996)
