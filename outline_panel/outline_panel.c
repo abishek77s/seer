@@ -50,10 +50,12 @@ op_toggle_collapsed(OP_Panel *panel, MD_ScanHeading *h)
     if(panel->collapsed[i] == key)
     {
       panel->collapsed[i] = panel->collapsed[--panel->collapsed_count];
+      panel->collapsed_version += 1;
       return;
     }
   }
   if(panel->collapsed_count < ArrayCount(panel->collapsed)) { panel->collapsed[panel->collapsed_count++] = key; }
+  panel->collapsed_version += 1;
 }
 
 internal String8
@@ -112,61 +114,108 @@ typedef struct OP_Outline OP_Outline;
 struct OP_Outline
 {
   U64 *depths;                   // per heading
+  U64 *parents;                  // per heading: the enclosing heading, or max_U64
+  U64 *rows;                     // per heading: its row, or max_U64 when not shown
   OP_Entry *entries;             // the visible rows
   U64 entry_count;
 };
 
-internal OP_Outline
-op_outline(Arena *arena, OP_Panel *panel, OP_Headings *el)
+internal OP_Outline *
+op_outline_build(Arena *arena, OP_Panel *panel, OP_Headings *el)
 {
-  OP_Outline o = {0};
+  OP_Outline *o = push_array(arena, OP_Outline, 1);
   U64 n = el->count;
-  o.depths = push_array(arena, U64, n + 1);
-  o.entries = push_array(arena, OP_Entry, n + 1);
+  o->depths = push_array_no_zero(arena, U64, n + 1);
+  o->parents = push_array_no_zero(arena, U64, n + 1);
+  o->rows = push_array_no_zero(arena, U64, n + 1);
+  o->entries = push_array_no_zero(arena, OP_Entry, n + 1);
   {
     U64 stack[8];
+    U64 stack_index[8];
     U64 top = 0;
     for EachIndex(i, n)
     {
       U64 level = el->v[i].level;
       while(top > 0 && stack[top-1] >= level) { top -= 1; }
-      o.depths[i] = top;
-      if(top < ArrayCount(stack)) { stack[top++] = level; }
+      o->depths[i] = top;
+      o->parents[i] = top ? stack_index[top-1] : max_U64;
+      o->rows[i] = max_U64;
+      if(top < ArrayCount(stack)) { stack_index[top] = i; stack[top++] = level; }
     }
   }
   String8 query = op_query(panel);
   if(query.size)
   {
+    // matches in document order, then a stable counting sort by score, best
+    // first: ties keep document order
+    Temp scratch = scratch_begin(&arena, 1);
+    OP_Entry *matches = push_array_no_zero(scratch.arena, OP_Entry, n + 1);
+    U64 match_count = 0, max_score = 0;
     for EachIndex(i, n)
     {
       OP_Entry e = {0};
       e.heading = i;
       e.label = el->v[i].text;
       if(!op_fuzzy_match(arena, e.label, query, &e.match_positions, &e.match_count, &e.match_score)) { continue; }
-      // stable insertion by score: ties keep document order
-      U64 r = o.entry_count++;
-      for(;r > 0 && o.entries[r-1].match_score < e.match_score; r -= 1) { o.entries[r] = o.entries[r-1]; }
-      o.entries[r] = e;
+      max_score = Max(max_score, e.match_score);
+      matches[match_count++] = e;
     }
+    U64 *starts = push_array(scratch.arena, U64, max_score + 2);
+    for EachIndex(i, match_count) { starts[max_score - matches[i].match_score + 1] += 1; }
+    for EachIndex(k, max_score + 1) { starts[k+1] += starts[k]; }
+    for EachIndex(i, match_count)
+    {
+      U64 r = starts[max_score - matches[i].match_score]++;
+      o->entries[r] = matches[i];
+      o->rows[matches[i].heading] = r;
+    }
+    o->entry_count = match_count;
+    scratch_end(scratch);
     return o;
   }
   U64 hidden_below = max_U64;
   for EachIndex(i, n)
   {
     MD_ScanHeading *h = &el->v[i];
-    U64 d = o.depths[i];
+    U64 d = o->depths[i];
     if(hidden_below != max_U64 && d > hidden_below) { continue; }
     hidden_below = max_U64;
     OP_Entry e = {0};
     e.heading = i;
     e.depth = d;
-    e.has_children = (i+1 < n && o.depths[i+1] > d);
+    e.has_children = (i+1 < n && o->depths[i+1] > d);
     e.collapsed = e.has_children && op_is_collapsed(panel, h);
     if(e.collapsed) { hidden_below = d; }
     e.label = h->text;
-    o.entries[o.entry_count++] = e;
+    o->rows[i] = o->entry_count;
+    o->entries[o->entry_count++] = e;
   }
   return o;
+}
+
+// The outline, built again only when what it shows changed. While a large
+// document is still being scanned that is once a frame at most.
+internal OP_Outline *
+op_outline(OP_Panel *panel, MDP_View *view)
+{
+  OP_Headings headings = op_headings(view);
+  String8 query = str8(panel->query, panel->query_size);
+  if(panel->outline == 0 ||
+     panel->outline_doc_generation != view->doc_generation ||
+     panel->outline_heading_count != headings.count ||
+     panel->outline_collapsed_version != panel->collapsed_version ||
+     !str8_match(str8(panel->outline_query, panel->outline_query_size), query, 0))
+  {
+    if(panel->outline_arena == 0) { panel->outline_arena = arena_alloc(); }
+    arena_clear(panel->outline_arena);
+    panel->outline = op_outline_build(panel->outline_arena, panel, &headings);
+    panel->outline_doc_generation = view->doc_generation;
+    panel->outline_heading_count = headings.count;
+    panel->outline_collapsed_version = panel->collapsed_version;
+    MemoryCopy(panel->outline_query, panel->query, panel->query_size);
+    panel->outline_query_size = panel->query_size;
+  }
+  return panel->outline;
 }
 
 // The row that shows the selection: the selected heading's, or its nearest
@@ -175,14 +224,9 @@ internal U64
 op_selected_row(OP_Panel *panel, OP_Outline *o, OP_Headings *el)
 {
   U64 h = panel->selected;
-  while(h < el->count)
+  for(;h < el->count; h = o->parents[h])
   {
-    for EachIndex(r, o->entry_count) { if(o->entries[r].heading == h) { return r; } }
-    U64 d = o->depths[h];
-    if(d == 0) { break; }
-    U64 parent = max_U64;
-    for(U64 j = h; j > 0; j -= 1) { if(o->depths[j-1] < d) { parent = j-1; break; } }
-    h = parent;
+    if(o->rows[h] != max_U64) { return o->rows[h]; }
   }
   return max_U64;
 }
@@ -201,6 +245,8 @@ struct OP_Layout
   Rng2F32 editor;
   Rng2F32 clear;                 // clear button, with a query
   Rng2F32 list;
+  Rng2F32 scrollbar_track;
+  Rng2F32 scrollbar_thumb;
   F32 row_h;
   F32 max_scroll;
   OP_Outline outline;
@@ -256,11 +302,21 @@ op_layout(Arena *arena, OP_Panel *panel, MDP_View *view, WM_Window window)
   //- the list
   l.list = r2f32p(l.rect.x0, l.filter.y1, inner_x1, l.rect.y1);
   l.row_h = round_f32(OP_ROW_HEIGHT_PX*s);
-  OP_Headings headings = op_headings(view);
-  l.outline = op_outline(arena, panel, &headings);
+  l.outline = *op_outline(panel, view);
   F32 content_h = l.outline.entry_count*l.row_h;
   l.max_scroll = ClampBot(0, content_h - (l.list.y1 - l.list.y0));
   panel->scroll_y = Clamp(0, panel->scroll_y, l.max_scroll);
+  if(l.max_scroll > 0)
+  {
+    F32 pad = MDP_SCROLLBAR_PADDING_PX*s;
+    F32 width = MDP_SCROLLBAR_WIDTH_PX*s;
+    l.scrollbar_track = r2f32p(l.list.x1 - width - 2*pad, l.list.y0, l.list.x1, l.list.y1);
+    F32 space = (l.list.y1 - l.list.y0) - 2*pad;
+    F32 total = l.outline.entry_count*l.row_h;
+    F32 thumb_h = Min(space, Max(MDP_SCROLLBAR_MIN_THUMB_PX*s, (l.list.y1 - l.list.y0)*((l.list.y1 - l.list.y0)/total)));
+    F32 thumb_y = l.list.y0 + pad + (panel->scroll_y/l.max_scroll)*(space - thumb_h);
+    l.scrollbar_thumb = r2f32p(l.list.x1 - pad - width, thumb_y, l.list.x1 - pad, thumb_y + thumb_h);
+  }
   return l;
 }
 
@@ -290,6 +346,17 @@ op_row_at(OP_Layout *l, OP_Panel *panel, Vec2F32 pos)
   F32 y = pos.y - l->list.y0 + round_f32(panel->scroll_y);
   U64 row = (U64)(y / l->row_h);
   return (row < l->outline.entry_count) ? row : max_U64;
+}
+
+internal void
+op_scrollbar_scroll_to(OP_Panel *panel, OP_Layout *l, F32 y)
+{
+  Rng2F32 container = pad_2f32(l->scrollbar_track, -MDP_SCROLLBAR_PADDING_PX*l->s);
+  F32 thumb_h = l->scrollbar_thumb.y1 - l->scrollbar_thumb.y0;
+  F32 space = (container.y1 - container.y0) - thumb_h;
+  F32 start = Clamp(0, y - container.y0 - panel->thumb_drag_offset, space);
+  panel->scroll_y = (space > 0) ? start/space*l->max_scroll : 0;
+  panel->scroll_activity_us = now_time_us();
 }
 
 ////////////////////////////////
@@ -348,7 +415,12 @@ op_panel_handle_event(OP_Panel *panel, MDP_View *view, WM_Window window, WM_Even
 
     case WM_EventKind_MouseMove:
     {
-      if(panel->resizing)
+      if(panel->thumb_dragging)
+      {
+        op_scrollbar_scroll_to(panel, &l, ev->pos.y);
+        taken = 1;
+      }
+      else if(panel->resizing)
       {
         panel->width = ClampBot(OP_MIN_WIDTH_PX, (ev->pos.x - l.rect.x0)/l.s);
         taken = 1;
@@ -357,14 +429,18 @@ op_panel_handle_event(OP_Panel *panel, MDP_View *view, WM_Window window, WM_Even
 
     case WM_EventKind_Release:
     {
-      if(ev->key == WM_Key_LeftMouseButton && panel->resizing) { panel->resizing = 0; taken = 1; }
+      if(ev->key == WM_Key_LeftMouseButton)
+      {
+        if(panel->thumb_dragging) { panel->thumb_dragging = 0; taken = 1; break; }
+        if(panel->resizing) { panel->resizing = 0; taken = 1; }
+      }
     }break;
 
     case WM_EventKind_Scroll:
     {
       if(contains_2f32(l.rect, ev->pos) && !(ev->modifiers & WM_Modifier_Ctrl))
       {
-        panel->scroll_y = Clamp(0, panel->scroll_y - ev->delta.y/120.f*3.f*l.row_h, l.max_scroll);
+        panel->scroll_y = Clamp(0, panel->scroll_y + ev->delta.y/120.f*3.f*l.row_h, l.max_scroll);
         panel->scroll_activity_us = now_time_us();
         taken = 1;
       }
@@ -401,6 +477,14 @@ op_panel_handle_event(OP_Panel *panel, MDP_View *view, WM_Window window, WM_Even
         view->search_focused = 0;
         view->menu_open = 0;
         taken = 1;
+        if(l.max_scroll > 0 && contains_2f32(l.scrollbar_track, ev->pos))
+        {
+          panel->thumb_drag_offset = contains_2f32(l.scrollbar_thumb, ev->pos) ?
+            ev->pos.y - l.scrollbar_thumb.y0 : (l.scrollbar_thumb.y1 - l.scrollbar_thumb.y0)/2;
+          panel->thumb_dragging = 1;
+          op_scrollbar_scroll_to(panel, &l, ev->pos.y);
+          break;
+        }
         if(contains_2f32(l.clear, ev->pos)) { panel->query_size = 0; op_query_changed(panel); break; }
         U64 row = op_row_at(&l, panel, ev->pos);
         if(row != max_U64)
@@ -680,18 +764,12 @@ op_panel_draw(OP_Panel *panel, MDP_View *view, WM_Window window)
     }
 
     //- scrollbar: the thumb while the panel is hovered or just scrolled
-    if(l.max_scroll > 0 && (contains_2f32(l.rect, mouse) || op_panel_is_animating(panel)))
+    if(l.max_scroll > 0 && (panel->thumb_dragging || contains_2f32(l.rect, mouse) || op_panel_is_animating(panel)))
     {
-      F32 pad = MDP_SCROLLBAR_PADDING_PX*s;
-      F32 width = MDP_SCROLLBAR_WIDTH_PX*s;
-      F32 list_h = l.list.y1 - l.list.y0;
-      F32 space = list_h - 2*pad;
-      F32 total = o->entry_count*l.row_h;
-      F32 thumb_h = Min(space, Max(MDP_SCROLLBAR_MIN_THUMB_PX*s, list_h*(list_h/total)));
-      F32 thumb_y = l.list.y0 + pad + (panel->scroll_y/l.max_scroll)*(space - thumb_h);
-      Rng2F32 thumb = r2f32p(l.list.x1 - pad - width, thumb_y, l.list.x1 - pad, thumb_y + thumb_h);
-      Vec4F32 c = th_over(bg, contains_2f32(thumb, mouse) ? colors->scrollbar_thumb_hover_background : colors->scrollbar_thumb_background);
-      dr_rect(thumb, th_linear(c), width/2, 0, 0.5f);
+      B32 hovered = contains_2f32(l.scrollbar_thumb, mouse);
+      Vec4F32 thumb = panel->thumb_dragging ? colors->scrollbar_thumb_active_background :
+        hovered ? colors->scrollbar_thumb_hover_background : colors->scrollbar_thumb_background;
+      dr_rect(l.scrollbar_thumb, th_linear(th_over(bg, thumb)), MDP_SCROLLBAR_WIDTH_PX*s/2, 0, 0.5f);
     }
   }
 
@@ -731,9 +809,9 @@ op_panel_draw(OP_Panel *panel, MDP_View *view, WM_Window window)
   }
 
   //- cursor
-  if(panel->resizing || contains_2f32(l.handle, mouse)) { wm_set_cursor(WM_Cursor_LeftRight); }
-  else if(contains_2f32(l.editor, mouse)) { wm_set_cursor(WM_Cursor_IBar); }
-  else if(hovered_row != max_U64 || (op_query(panel).size && contains_2f32(l.clear, mouse))) { wm_set_cursor(WM_Cursor_HandPoint); }
-  else if(contains_2f32(l.rect, mouse)) { wm_set_cursor(WM_Cursor_Pointer); }
+  if(panel->resizing || contains_2f32(l.handle, mouse)) { mdp_request_cursor(WM_Cursor_LeftRight); }
+  else if(contains_2f32(l.editor, mouse)) { mdp_request_cursor(WM_Cursor_IBar); }
+  else if(hovered_row != max_U64 || (op_query(panel).size && contains_2f32(l.clear, mouse))) { mdp_request_cursor(WM_Cursor_HandPoint); }
+  else if(contains_2f32(l.rect, mouse)) { mdp_request_cursor(WM_Cursor_Pointer); }
   scratch_end(scratch);
 }

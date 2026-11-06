@@ -24,6 +24,13 @@ typedef enum IC_Icon
   IC_Icon_File,
   IC_Icon_SidebarLeftClosed,
   IC_Icon_SidebarLeftOpen,
+  IC_Icon_Copy,
+  IC_Icon_Check,
+  IC_Icon_Info,
+  IC_Icon_Sparkle,
+  IC_Icon_Chat,
+  IC_Icon_Warning,
+  IC_Icon_Stop,
   IC_Icon_COUNT
 }
 IC_Icon;

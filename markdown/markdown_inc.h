@@ -3,6 +3,7 @@
 
 #include "markdown/markdown_parser.h"
 #include "markdown/markdown_code.h"
+#include "icons/icons.h"
 #include "markdown/markdown.h"
 
 #endif // MARKDOWN_INC_H

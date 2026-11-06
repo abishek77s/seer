@@ -83,6 +83,7 @@ struct MDP_View
   MDP_Chunk *chunks;
   U64 chunk_count;
   U64 chunk_cap;
+  U64 doc_generation;            // bumps when the document is loaded again
   U64 build_key;                 // bumps when rem, theme or the references change
   F32 build_rem;
   TH_Kind build_theme;
@@ -170,6 +171,13 @@ struct MDP_View
 #define MDP_CHUNK_BYTES       KB(64)
 #define MDP_SCAN_READ_BYTES   MB(1)
 #define MDP_SCAN_BUDGET_US    6000      // per frame, while the document is scanned
+
+// The mouse cursor for this frame: the preview and the panels request one
+// as they draw (the last request wins) and the app sets it once. Every change
+// makes Windows send a mouse move, so setting it twice a frame (the preview's
+// arrow, then a panel's hand) would never let the app go idle.
+global WM_Cursor mdp_frame_cursor = WM_Cursor_Pointer;
+internal void mdp_request_cursor(WM_Cursor cursor);
 
 internal void mdp_view_init(MDP_View *view);
 internal void mdp_view_load_text(MDP_View *view, String8 name, String8 path, String8 text);

@@ -529,6 +529,7 @@ mdp_view_reset_document(MDP_View *view)
   md_scanner_release(&view->scanner);
   md_scanner_init(&view->scanner, MDP_CHUNK_BYTES);
   view->scan_read_size = MDP_SCAN_READ_BYTES;
+  view->doc_generation += 1;
   view->build_key += 1;
   view->content_height = 0;
   view->ix.selection_start = view->ix.selection_end = 0;
@@ -1994,6 +1995,12 @@ mdp_view_handle_event(MDP_View *view, WM_Window window, WM_Event *ev)
 ////////////////////////////////
 //~ Drawing
 
+internal void
+mdp_request_cursor(WM_Cursor cursor)
+{
+  mdp_frame_cursor = cursor;
+}
+
 internal B32
 mdp_view_is_animating(MDP_View *view)
 {
@@ -2145,11 +2152,10 @@ mdp_view_draw(MDP_View *view, WM_Window window)
   if(view->ix.mouse_inside) { hit = mdp_view_hit_test(view, view->ix.mouse, &hit_el); }
   view->hovered_url = mdp_view_link_url(hit_el, hit.link);
   view->thumb_hovered = g.has_thumb && mouse_inside && contains_2f32(g.thumb, mouse);
-  if(view->selecting) { wm_set_cursor(WM_Cursor_IBar); }
-  else if(hit.link || hit.copy_button || hit.checkbox) { wm_set_cursor(WM_Cursor_HandPoint); }
-  else if(hit.over_text) { wm_set_cursor(WM_Cursor_IBar); }
-  else if(view->search_open && contains_2f32(mdp_search_bar_layout(&g).input, mouse)) { wm_set_cursor(WM_Cursor_IBar); }
-  else { wm_set_cursor(WM_Cursor_Pointer); }
+  if(view->selecting) { mdp_request_cursor(WM_Cursor_IBar); }
+  else if(hit.link || hit.copy_button || hit.checkbox) { mdp_request_cursor(WM_Cursor_HandPoint); }
+  else if(hit.over_text) { mdp_request_cursor(WM_Cursor_IBar); }
+  else if(view->search_open && contains_2f32(mdp_search_bar_layout(&g).input, mouse)) { mdp_request_cursor(WM_Cursor_IBar); }
 
   //- background: .bg(editor_background)
   dr_rect(g.client, th_linear(colors->editor_background), 0, 0, 0);

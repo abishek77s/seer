@@ -90,6 +90,73 @@ md_run_font(MD_Style *style, MD_TextRun *run)
   return md_font_tag(style->fonts, run->family, !!(run->flags & MD_RunFlag_Bold), !!(run->flags & MD_RunFlag_Italic));
 }
 
+typedef struct MD_GlyphCacheEntry MD_GlyphCacheEntry;
+struct MD_GlyphCacheEntry
+{
+  FNT_Tag font;
+  U32 codepoint;
+  B32 has_glyph;
+  B32 valid;
+};
+
+global MD_GlyphCacheEntry md_glyph_cache[4096];
+
+internal B32
+md_font_has_glyph(FNT_Tag font, U32 codepoint)
+{
+  if(fnt_tag_match(font, fnt_tag_zero())) { return 0; }
+  U64 hash = font.u64[0] ^ (font.u64[1]*0x9E3779B185EBCA87ull) ^ ((U64)codepoint*0xC2B2AE3D27D4EB4Full);
+  MD_GlyphCacheEntry *entry = &md_glyph_cache[hash % ArrayCount(md_glyph_cache)];
+  if(entry->valid && entry->codepoint == codepoint && fnt_tag_match(entry->font, font)) { return entry->has_glyph; }
+
+  B32 result = 1;
+#if FP_BACKEND == FP_BACKEND_DWRITE
+  FP_DWrite_Font dwrite_font = fp_dwrite_font_from_handle(fnt_handle_from_tag(font));
+  U32 codepoints[1] = {codepoint};
+  U16 glyphs[1] = {0};
+  result = (dwrite_font.face != 0 && IDWriteFontFace_GetGlyphIndices(dwrite_font.face, codepoints, 1, glyphs) == S_OK && glyphs[0] != 0);
+#endif
+  entry->font = font;
+  entry->codepoint = codepoint;
+  entry->has_glyph = result;
+  entry->valid = 1;
+  return result;
+}
+
+internal FNT_Tag
+md_font_for_codepoint(MD_Style *style, MD_TextRun *run, U32 codepoint)
+{
+  FNT_Tag primary = md_run_font(style, run);
+  if(md_font_has_glyph(primary, codepoint)) { return primary; }
+  for EachIndex(i, style->fonts->fallback_count)
+  {
+    FNT_Tag fallback = style->fonts->fallback[i];
+    if(md_font_has_glyph(fallback, codepoint)) { return fallback; }
+  }
+  return primary;
+}
+
+// Returns the UTF-8 end offset of the maximal substring in [start, end) that
+// can be rasterized with one fallback font. This is glyph fallback only; the
+// existing RAD run cache still does not shape complex-script clusters.
+internal U64
+md_font_segment_end(MD_Style *style, MD_TextRun *run, String8 string, U64 start, U64 end, FNT_Tag *font_out)
+{
+  UnicodeDecode first = utf8_decode(string.str + start, end - start);
+  U64 next = start + Max(1, first.inc);
+  FNT_Tag font = md_font_for_codepoint(style, run, first.codepoint);
+  while(next < end)
+  {
+    UnicodeDecode d = utf8_decode(string.str + next, end - next);
+    U64 after = next + Max(1, d.inc);
+    if(!fnt_tag_match(md_font_for_codepoint(style, run, d.codepoint), font)) { break; }
+    next = after;
+  }
+  *font_out = font;
+  return next;
+}
+
+// gpui sizes are pixels; the RAD font layer takes points (em = size*96/72)
 ////////////////////////////////
 //~ Images
 
@@ -2235,16 +2302,16 @@ md_build_node(MD_Builder *b, MD_Node *node, U64 depth)
     case MD_NodeKind_BlockQuote:
     {
       Vec4F32 border_color = colors->border;
-      String8 icon = {0};
+      IC_Icon svg_icon = IC_Icon_Null;
       String8 label = {0};
       switch(node->alert)
       {
         default:{}break;
-        case MD_AlertKind_Note:      { border_color = colors->info;    icon = str8_lit("i"); label = str8_lit("Note"); }break;
-        case MD_AlertKind_Tip:       { border_color = colors->success; icon = str8_lit("V"); label = str8_lit("Tip"); }break;
-        case MD_AlertKind_Important: { border_color = colors->info;    icon = str8_lit("W"); label = str8_lit("Important"); }break;
-        case MD_AlertKind_Warning:   { border_color = colors->warning; icon = str8_lit("W"); label = str8_lit("Warning"); }break;
-        case MD_AlertKind_Caution:   { border_color = colors->error;   icon = str8_lit("s"); label = str8_lit("Caution"); }break;
+        case MD_AlertKind_Note:      { border_color = colors->info;    svg_icon = IC_Icon_Info;    label = str8_lit("Note"); }break;
+        case MD_AlertKind_Tip:       { border_color = colors->success; svg_icon = IC_Icon_Sparkle; label = str8_lit("Tip"); }break;
+        case MD_AlertKind_Important: { border_color = colors->info;    svg_icon = IC_Icon_Chat;    label = str8_lit("Important"); }break;
+        case MD_AlertKind_Warning:   { border_color = colors->warning; svg_icon = IC_Icon_Warning; label = str8_lit("Warning"); }break;
+        case MD_AlertKind_Caution:   { border_color = colors->error;   svg_icon = IC_Icon_Stop;    label = str8_lit("Caution"); }break;
       }
       MD_Box *q = md_box_alloc(b, MD_BoxKind_Block);
       q->padding[MD_Side_Left] = md_rems(style, 1.f);
@@ -2264,7 +2331,7 @@ md_build_node(MD_Builder *b, MD_Node *node, U64 depth)
         header->margin[MD_Side_Bottom] = md_rems(style, 0.25f);
         md_box_append(q, header);
         MD_Box *ic = md_box_alloc(b, MD_BoxKind_Icon);
-        ic->icon = icon;
+        ic->svg_icon = svg_icon;
         ic->icon_size = md_rems(style, 14.f/16.f);
         ic->icon_color = border_color;
         ic->fixed_width = ic->fixed_height = md_rems(style, 14.f/16.f);
@@ -2635,7 +2702,13 @@ md_text_range_width(MD_Style *style, MD_Text *t, U64 start, U64 end)
     U64 r = md_run_index_at(t, i);
     U64 e = Min(end, t->runs[r].end);
     if(e <= i) { e = end; }
-    w += md_text_width(md_run_font(style, &t->runs[r]), t->font_size, str8_substr(t->string, r1u64(i, e)));
+    for(U64 p = i; p < e;)
+    {
+      FNT_Tag font = {0};
+      U64 pe = md_font_segment_end(style, &t->runs[r], t->string, p, e, &font);
+      w += md_text_width(font, t->font_size, str8_substr(t->string, r1u64(p, pe)));
+      p = pe;
+    }
     i = e;
   }
   return w;
@@ -2650,17 +2723,26 @@ md_text_layout(Arena *arena, MD_Style *style, MD_Text *t, F32 max_width)
   String8 s = t->string;
   B32 wrap = t->wrap;
 
-  //- metrics: the max ascent/descent over the runs' fonts
+  //- metrics: the max ascent/descent over the primary and fallback fonts
   t->ascent = 0;
   t->descent = 0;
   for EachIndex(i, t->run_count)
   {
-    FP_Metrics m = fnt_fp_metrics_from_tag(md_run_font(style, &t->runs[i]));
-    if(m.design_units_per_em <= 0) { continue; }
-    F32 a = m.ascent / m.design_units_per_em * t->font_size;
-    F32 d = m.descent / m.design_units_per_em * t->font_size;
-    t->ascent = Max(t->ascent, a);
-    t->descent = Max(t->descent, d);
+    MD_TextRun *run = &t->runs[i];
+    for(U64 p = run->start; p < run->end;)
+    {
+      FNT_Tag font = {0};
+      U64 pe = md_font_segment_end(style, run, t->string, p, run->end, &font);
+      FP_Metrics m = fnt_fp_metrics_from_tag(font);
+      if(m.design_units_per_em > 0)
+      {
+        F32 a = m.ascent / m.design_units_per_em * t->font_size;
+        F32 d = m.descent / m.design_units_per_em * t->font_size;
+        t->ascent = Max(t->ascent, a);
+        t->descent = Max(t->descent, d);
+      }
+      p = pe;
+    }
   }
 
   MD_TextLineNode *first_line = 0, *last_line = 0;
@@ -3047,6 +3129,38 @@ md_shift_subtree(MD_Box *box, F32 dx, F32 dy)
   for(MD_Box *k = box->first; k != 0; k = k->next) { md_shift_subtree(k, dx, dy); }
 }
 
+internal void
+md_align_wrap_line_images(MD_Box *line_first, MD_Box *line_end)
+{
+  // Inline SVGs such as Shields badges carry their own text baseline. Align
+  // that baseline with the surrounding paragraph text instead of leaving the
+  // image at the flex line's top edge.
+  MD_Box *text_box = 0;
+  for(MD_Box *ch = line_first; ch != line_end; ch = ch->next)
+  {
+    if(ch->kind == MD_BoxKind_Text && ch->text && ch->text->line_count > 0)
+    {
+      text_box = ch;
+      break;
+    }
+  }
+  if(text_box == 0) { return; }
+
+  MD_Text *text = text_box->text;
+  F32 text_padding = (text->line_height - text->ascent - text->descent)/2;
+  F32 text_baseline = text_box->rect.y0 + text_padding + text->ascent;
+  for(MD_Box *ch = line_first; ch != line_end; ch = ch->next)
+  {
+    if(ch->kind != MD_BoxKind_Image || ch->image == 0 || ch->image->first_text == 0 || ch->image->size.x <= 0)
+    {
+      continue;
+    }
+    F32 image_scale = (ch->rect.x1 - ch->rect.x0)/(F32)ch->image->size.x;
+    F32 image_baseline = ch->rect.y0 + ch->image->first_text->pos.y*image_scale;
+    md_shift_subtree(ch, 0, text_baseline - image_baseline);
+  }
+}
+
 internal F32
 md_layout_wrap(MD_LayoutCtx *c, MD_Box *box, F32 x, F32 y, F32 w)
 {
@@ -3057,6 +3171,7 @@ md_layout_wrap(MD_LayoutCtx *c, MD_Box *box, F32 x, F32 y, F32 w)
   F32 cx = 0, cy = 0, line_h = 0;
   MD_Box *line_first = box->first;
 #define MD_FinishLine(end_child) do { \
+md_align_wrap_line_images(line_first, (end_child)); \
 F32 slack = inner_w - cx; \
 F32 dx = (box->align == MD_Align_Center) ? floor_f32(slack/2) : (box->align == MD_Align_Right) ? slack : 0; \
 if(dx > 0) { for(MD_Box *_k = line_first; _k != (end_child); _k = _k->next) { if(md_box_in_flow(_k)) { md_shift_subtree(_k, dx, 0); } } } \
@@ -3359,11 +3474,19 @@ md_paint_text(MD_PaintCtx *p, MD_Box *box, Vec2F32 origin, Vec4F32 bg)
     {
       MD_TextFrag *f = &t->frags[line->first_frag + fi];
       MD_TextRun *run = &t->runs[f->run];
-      String8 str = str8_substr(t->string, r1u64(f->start, f->end));
       F32 fx = x0 + f->x;
       if(fx > p->clip.x1 || fx + f->width < p->clip.x0) { continue; }
-      FNT_Run fr = fnt_run_from_string(md_run_font(style, run), md_pt_from_px(t->font_size), 0, t->font_size*4.f, FNT_RasterFlag_Smooth, str);
-      dr_text_run(v2f32(fx, baseline), th_linear(run->color), fr);
+      F32 draw_x = fx;
+      for(U64 pos = f->start; pos < f->end;)
+      {
+        FNT_Tag font = {0};
+        U64 end = md_font_segment_end(style, run, t->string, pos, f->end, &font);
+        String8 segment = str8_substr(t->string, r1u64(pos, end));
+        FNT_Run fr = fnt_run_from_string(font, md_pt_from_px(t->font_size), 0, t->font_size*4.f, FNT_RasterFlag_Smooth, segment);
+        dr_text_run(v2f32(draw_x, baseline), th_linear(run->color), fr);
+        draw_x += fr.dim.x;
+        pos = end;
+      }
       if(run->flags & MD_RunFlag_Underline)
       {
         F32 uy = round_f32(top + underline_offset);
@@ -3473,7 +3596,13 @@ md_paint_box(MD_PaintCtx *p, MD_Box *box, Vec2F32 origin, Vec4F32 bg)
     }break;
     case MD_BoxKind_Icon:
     {
-      md_paint_icon(p, box->icon, r, box->icon_size, box->icon_color);
+      // The UI font's visible glyphs sit slightly below the line-box center;
+      // apply the same optical correction to the alert SVGs.
+      Rng2F32 icon_r = r;
+      icon_r.y0 += md_rems(style, 0.2f);
+      icon_r.y1 += md_rems(style, 0.2f);
+      if(box->svg_icon != IC_Icon_Null) { ic_draw(box->svg_icon, icon_r, box->icon_size, box->icon_color); }
+      else { md_paint_icon(p, box->icon, icon_r, box->icon_size, box->icon_color); }
     }break;
     case MD_BoxKind_Gutter:
     {
@@ -3495,7 +3624,7 @@ md_paint_box(MD_PaintCtx *p, MD_Box *box, Vec2F32 origin, Vec4F32 bg)
         B32 copied = (p->ix->copied_code_key == box->key && now_time_us() < p->ix->copied_code_until_us);
         md_fill(r, colors->editor_background, 0);
         if(p->hover.copy_button) { md_fill(r, colors->border_variant, md_rems(style, 0.25f)); }
-        md_paint_icon(p, copied ? str8_lit("V") : str8_lit("a"), r, md_rems(style, 14.f/16.f), copied ? colors->success : colors->text_muted);
+        ic_draw(copied ? IC_Icon_Check : IC_Icon_Copy, r, md_rems(style, 14.f/16.f), copied ? colors->success : colors->text_muted);
       }
     }break;
   }

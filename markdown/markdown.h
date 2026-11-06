@@ -24,6 +24,8 @@
 ////////////////////////////////
 //~ Fonts
 
+#define MD_MAX_FALLBACK_FONTS 16
+
 typedef struct MD_Fonts MD_Fonts;
 struct MD_Fonts
 {
@@ -36,6 +38,8 @@ struct MD_Fonts
   FNT_Tag mono_bold;
   FNT_Tag mono_bold_italic;
   FNT_Tag symbols;               // fallback for bullets the text fonts lack (Segoe UI Symbol)
+  FNT_Tag fallback[MD_MAX_FALLBACK_FONTS]; // installed script fallback faces
+  U64 fallback_count;
   FNT_Tag icons;
 };
 
@@ -234,6 +238,7 @@ struct MD_Box
   // content
   MD_Text *text;
   String8 icon;                  // icon font glyph
+  IC_Icon svg_icon;              // Zed icon asset, when non-null
   F32 icon_size;
   Vec4F32 icon_color;
   B32 checked;

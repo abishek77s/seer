@@ -78,6 +78,41 @@ read_only global String8 ic_svgs[IC_Icon_COUNT] =
     "<path d=\"M7 2V14\" stroke=\"#C6CAD0\" stroke-width=\"1.2\"/>"
     "<rect x=\"2\" y=\"2\" width=\"12\" height=\"12\" rx=\"1.5\" stroke=\"#C6CAD0\" stroke-width=\"1.2\"/>"
     "</svg>"),
+  // copy.svg
+  str8_lit_comp(
+    "<svg width=\"16\" height=\"16\" viewBox=\"0 0 16 16\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\">"
+    "<path d=\"M12.486 6.2H7.24795C6.66895 6.2 6.19995 6.669 6.19995 7.248V12.486C6.19995 13.064 6.66895 13.533 7.24795 13.533H12.486C13.064 13.533 13.533 13.064 13.533 12.486V7.248C13.533 6.669 13.064 6.2 12.486 6.2Z\" stroke=\"black\" stroke-width=\"1.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/>"
+    "<path d=\"M3.91712 10.203C3.63951 10.2022 3.37351 10.0915 3.1773 9.89511C2.98109 9.69872 2.87064 9.43261 2.87012 9.155V3.917C2.87091 3.63956 2.98147 3.37371 3.17765 3.17753C3.37383 2.98135 3.63968 2.87079 3.91712 2.87H9.15512C9.43273 2.87053 9.69883 2.98097 9.89523 3.17718C10.0916 3.37339 10.2023 3.63939 10.2031 3.917\" stroke=\"black\" stroke-width=\"1.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/>"
+    "</svg>"),
+  // check.svg
+  str8_lit_comp(
+    "<svg width=\"16\" height=\"16\" viewBox=\"0 0 16 16\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\">"
+    "<path d=\"M4.625 8.98121L7.03402 10.7714L11.3437 4.75989\" stroke=\"black\" stroke-width=\"1.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/>"
+    "</svg>"),
+  // info.svg
+  str8_lit_comp(
+    "<svg width=\"16\" height=\"16\" viewBox=\"0 0 16 16\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\">"
+    "<path d=\"M8 14C11.3137 14 14 11.3137 14 8C14 4.68629 11.3137 2 8 2C4.68629 2 2 4.68629 2 8C2 11.3137 4.68629 14 8 14Z\" stroke=\"black\" stroke-width=\"1.2\"/>"
+    "<path d=\"M7 11H8M8 11H9M8 11V8.1C8 8.04477 7.95523 8 7.9 8H7\" stroke=\"black\" stroke-width=\"1.2\" stroke-linecap=\"round\"/>"
+    "<path d=\"M8 6.5C8.55228 6.5 9 6.05228 9 5.5C9 4.94772 8.55228 4.5 8 4.5C7.44772 4.5 7 4.94772 7 5.5C7 6.05228 7.44772 6.5 8 6.5Z\" fill=\"black\"/>"
+    "</svg>"),
+  // sparkle.svg
+  str8_lit_comp(
+    "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" fill=\"none\"><path stroke=\"#000\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"1.2\" d=\"M6.762 10.1a1.2 1.2 0 0 0-.862-.862l-3.68-.95a.3.3 0 0 1 0-.577l3.68-.95a1.2 1.2 0 0 0 .862-.86l.95-3.682a.3.3 0 0 1 .577 0L9.238 5.9a1.2 1.2 0 0 0 .862.862l3.68.949a.3.3 0 0 1 0 .578l-3.68.949a1.2 1.2 0 0 0-.862.862l-.95 3.68a.3.3 0 0 1-.577 0l-.949-3.68Z\"/></svg>"),
+  // chat.svg
+  str8_lit_comp(
+    "<svg width=\"16\" height=\"16\" viewBox=\"0 0 16 16\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\">"
+    "<path d=\"M4.17279 8.26346C4.87566 8.62402 5.68419 8.72168 6.4527 8.53885C7.2212 8.35601 7.89913 7.90471 8.36433 7.26626C8.82953 6.62781 9.0514 5.8442 8.98996 5.05664C8.92852 4.26908 8.58781 3.52936 8.02922 2.97078C7.47064 2.41219 6.73092 2.07148 5.94336 2.01004C5.1558 1.9486 4.37219 2.17047 3.73374 2.63567C3.09529 3.10087 2.64399 3.7788 2.46115 4.5473C2.27832 5.31581 2.37598 6.12435 2.73654 6.82721L2 9L4.17279 8.26346Z\" stroke=\"black\" stroke-width=\"1.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/>"
+    "<path d=\"M7.07168 11C7.16761 11.4537 7.35843 11.8857 7.63567 12.2662C8.10087 12.9047 8.7788 13.356 9.5473 13.5388C10.3158 13.7217 11.1243 13.624 11.8272 13.2634L14 14L13.2635 11.8272C13.624 11.1243 13.7217 10.3158 13.5388 9.54728C13.356 8.77877 12.9047 8.10084 12.2663 7.63564C11.8858 7.3584 11.4537 7.16759 11 7.07166\" stroke=\"black\" stroke-width=\"1.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/>"
+    "</svg>"),
+  // warning.svg
+  str8_lit_comp(
+    "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" fill=\"none\"><path stroke=\"#000\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"1.2\" d=\"M13.84 11.6 9.037 3.199a1.2 1.2 0 0 0-2.089 0l-4.802 8.403a1.2 1.2 0 0 0 1.05 1.8h9.604a1.201 1.201 0 0 0 1.038-1.8ZM8 6v2.667M8 11.333h.007\"/></svg>"),
+  // stop.svg
+  str8_lit_comp(
+    "<svg width=\"16\" height=\"16\" viewBox=\"0 0 16 16\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\">"
+    "<path d=\"M4.5 11.2667V4.73333C4.5 4.60446 4.60446 4.5 4.73333 4.5H11.2667C11.3956 4.5 11.5 4.60446 11.5 4.73333V11.2667C11.5 11.3956 11.3956 11.5 11.2667 11.5H4.73333C4.60446 11.5 4.5 11.2667 4.5 11.2667Z\" fill=\"#C6CAD0\" stroke=\"#C6CAD0\" stroke-width=\"1.2\" stroke-linejoin=\"round\"/>"
+    "</svg>"),
 };
 
 ////////////////////////////////

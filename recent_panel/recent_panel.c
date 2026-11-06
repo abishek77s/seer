@@ -364,7 +364,7 @@ rp_panel_draw(RP_Panel *panel, MDP_View *view, WM_Window window)
   }
 
   //- cursor
-  if(panel->resizing || contains_2f32(l.handle, mouse)) { wm_set_cursor(WM_Cursor_LeftRight); }
-  else if(hovered_row != max_U64) { wm_set_cursor(WM_Cursor_HandPoint); }
-  else if(contains_2f32(l.rect, mouse)) { wm_set_cursor(WM_Cursor_Pointer); }
+  if(panel->resizing || contains_2f32(l.handle, mouse)) { mdp_request_cursor(WM_Cursor_LeftRight); }
+  else if(hovered_row != max_U64) { mdp_request_cursor(WM_Cursor_HandPoint); }
+  else if(contains_2f32(l.rect, mouse)) { mdp_request_cursor(WM_Cursor_Pointer); }
 }

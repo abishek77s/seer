@@ -43,12 +43,25 @@ struct OP_Panel
   // list
   F32 scroll_y;                  // physical px
   U64 scroll_activity_us;
+  B32 thumb_dragging;
+  F32 thumb_drag_offset;
   U64 selected;                  // heading index, max_U64 = none
   B32 autoscroll;                // bring the selection into view next draw
 
   // collapsed outlines, by hash of level and text so they survive reloads
   U64 collapsed[512];
   U64 collapsed_count;
+  U64 collapsed_version;         // bumps on every toggle
+
+  // the outline, kept until the document, its headings, the query or the
+  // collapsed outlines change: a large document has tens of thousands
+  Arena *outline_arena;
+  struct OP_Outline *outline;
+  U64 outline_doc_generation;
+  U64 outline_heading_count;
+  U64 outline_collapsed_version;
+  U8 outline_query[256];
+  U64 outline_query_size;
 };
 
 internal void op_panel_init(OP_Panel *panel);

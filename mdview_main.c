@@ -158,16 +158,87 @@ read_only global String8 mv_welcome_text = str8_lit_comp(
 //~ Fonts
 
 internal FNT_Tag
+mv_font_from_ttc(String8 path)
+{
+#if OS_WINDOWS && FP_BACKEND == FP_BACKEND_DWRITE
+  Temp scratch = scratch_begin(0, 0);
+  String16 path16 = str16_from_8(scratch.arena, path);
+  IDWriteFontFile *file = 0;
+  IDWriteFontFace *face = 0;
+  if(fp_dwrite_state != 0 && IDWriteFactory_CreateFontFileReference(fp_dwrite_state->factory, (WCHAR *)path16.str, 0, &file) == S_OK &&
+     IDWriteFactory_CreateFontFace(fp_dwrite_state->factory, DWRITE_FONT_FACE_TYPE_TRUETYPE_COLLECTION, 1, &file, 0, DWRITE_FONT_SIMULATIONS_NONE, &face) == S_OK)
+  {
+    FNT_Tag tag = {0};
+    U128 hash = fnt_hash_from_string(path);
+    MemoryCopy(&tag, &hash, sizeof(tag));
+    tag.u64[1] |= bit64;
+    U64 slot_idx = tag.u64[1] % fnt_state->font_hash_table_size;
+    for(FNT_FontHashNode *n = fnt_state->font_hash_table[slot_idx].first; n != 0; n = n->hash_next)
+    {
+      if(fnt_tag_match(n->tag, tag))
+      {
+        IDWriteFontFace_Release(face);
+        IDWriteFontFile_Release(file);
+        scratch_end(scratch);
+        return tag;
+      }
+    }
+
+    FP_DWrite_Font dwrite_font = {file, face};
+    FNT_FontHashNode *node = push_array(fnt_state->permanent_arena, FNT_FontHashNode, 1);
+    node->tag = tag;
+    node->handle = fp_dwrite_handle_from_font(dwrite_font);
+    node->metrics = fp_metrics_from_font(node->handle);
+    node->path = push_str8_copy(fnt_state->permanent_arena, path);
+    SLLQueuePush_N(fnt_state->font_hash_table[slot_idx].first, fnt_state->font_hash_table[slot_idx].last, node, hash_next);
+    scratch_end(scratch);
+    return tag;
+  }
+  if(face != 0) { IDWriteFontFace_Release(face); }
+  if(file != 0) { IDWriteFontFile_Release(file); }
+  scratch_end(scratch);
+#else
+  (void)path;
+#endif
+  return fnt_tag_zero();
+}
+
+internal FNT_Tag
+mv_font_from_path(String8 path)
+{
+  B32 is_ttc = path.size >= 4 &&
+               path.str[path.size-4] == '.' &&
+               ((path.str[path.size-3] | 32) == 't') &&
+               ((path.str[path.size-2] | 32) == 't') &&
+               ((path.str[path.size-1] | 32) == 'c');
+  return is_ttc ? mv_font_from_ttc(path) : fnt_tag_from_path(path);
+}
+
+internal FNT_Tag
 mv_font_from_candidates(String8 *candidates, U64 count, FNT_Tag fallback)
 {
   for EachIndex(i, count)
   {
     if(candidates[i].size != 0 && file_path_exists(candidates[i]))
     {
-      return fnt_tag_from_path(candidates[i]);
+      FNT_Tag tag = mv_font_from_path(candidates[i]);
+      if(!fnt_tag_match(tag, fnt_tag_zero())) { return tag; }
     }
   }
   return fallback;
+}
+
+internal void
+mv_add_fallback_font(MD_Fonts *f, String8 path)
+{
+  if(path.size == 0 || f->fallback_count >= MD_MAX_FALLBACK_FONTS || !file_path_exists(path)) { return; }
+  FNT_Tag tag = mv_font_from_path(path);
+  if(fnt_tag_match(tag, fnt_tag_zero()) || fnt_tag_match(tag, f->sans) || fnt_tag_match(tag, f->mono)) { return; }
+  for EachIndex(i, f->fallback_count)
+  {
+    if(fnt_tag_match(f->fallback[i], tag)) { return; }
+  }
+  f->fallback[f->fallback_count++] = tag;
 }
 
 internal void
@@ -230,6 +301,30 @@ f->field = mv_font_from_candidates(c_, ArrayCount(c_), (fallback)); \
     push_str8f(scratch.arena, "%S/icons.ttf", rad_data),
   };
   f->icons = mv_font_from_candidates(icons, ArrayCount(icons), f->sans);
+
+#if OS_WINDOWS
+  // Keep the bundled Latin faces as the primary fonts, then use the same
+  // installed families Windows normally uses for missing script coverage.
+  mv_add_fallback_font(f, str8_lit("C:/Windows/Fonts/segoeui.ttf"));
+  mv_add_fallback_font(f, str8_lit("C:/Windows/Fonts/tahoma.ttf"));
+  mv_add_fallback_font(f, str8_lit("C:/Windows/Fonts/seguisym.ttf"));
+  mv_add_fallback_font(f, str8_lit("C:/Windows/Fonts/seguiemj.ttf"));
+  mv_add_fallback_font(f, str8_lit("C:/Windows/Fonts/simsun.ttc"));
+  mv_add_fallback_font(f, str8_lit("C:/Windows/Fonts/SimsunExtG.ttf"));
+  mv_add_fallback_font(f, str8_lit("C:/Windows/Fonts/mingliub.ttc"));
+  mv_add_fallback_font(f, str8_lit("C:/Windows/Fonts/msgothic.ttc"));
+  mv_add_fallback_font(f, str8_lit("C:/Windows/Fonts/malgun.ttf"));
+  mv_add_fallback_font(f, str8_lit("C:/Windows/Fonts/Nirmala.ttc"));
+  mv_add_fallback_font(f, str8_lit("C:/Windows/Fonts/LeelawUI.ttf"));
+  mv_add_fallback_font(f, str8_lit("C:/Windows/Fonts/ebrima.ttf"));
+  mv_add_fallback_font(f, str8_lit("C:/Windows/Fonts/gadugi.ttf"));
+#elif OS_LINUX
+  mv_add_fallback_font(f, str8_lit("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"));
+  mv_add_fallback_font(f, str8_lit("/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf"));
+  mv_add_fallback_font(f, str8_lit("/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"));
+  mv_add_fallback_font(f, str8_lit("/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf"));
+#endif
+
   {
     // windows_caption_font: Segoe Fluent Icons on Windows 11, Segoe MDL2 Assets before
     String8 captions[] =
@@ -636,6 +731,7 @@ frame(void)
 
   //- draw
   DR_Bucket *bucket = dr_bucket_make();
+  mdp_frame_cursor = WM_Cursor_Pointer;
   DR_BucketScope(bucket)
   {
     mdp_view_draw(view, mv->os);
@@ -643,6 +739,7 @@ frame(void)
     rp_panel_draw(&mv->recent, view, mv->os);
     mv_title_bar_draw(&title);
   }
+  wm_set_cursor(mdp_frame_cursor);
 
   //- submit
   r_begin_frame();
