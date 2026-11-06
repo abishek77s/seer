@@ -1,13 +1,14 @@
 ////////////////////////////////
 //~ Recent Files
 //
-// One path per line in <config>/mdview/recent_files, most recent first. The
-// last_file an older mdview wrote seeds the list.
+// One path per line in <config>/sumi/recent_files, most recent first. When
+// that file is missing, the list that mdview (Sumi's old name) wrote to
+// <config>/mdview seeds it: its recent_files, else its older last_file.
 
 internal String8
-rp_config_path(Arena *arena, String8 name)
+rp_config_path(Arena *arena, String8 app, String8 name)
 {
-  return push_str8f(arena, "%S/mdview/%S", get_process_info()->user_program_config_data_path, name);
+  return push_str8f(arena, "%S/%S/%S", get_process_info()->user_program_config_data_path, app, name);
 }
 
 internal B32
@@ -37,7 +38,7 @@ rp_recent_save(RP_Panel *panel)
   String8List lines = {0};
   for EachIndex(i, panel->path_count) { str8_list_push(scratch.arena, &lines, panel->paths[i]); }
   StringJoin join = {str8_zero(), str8_lit("\n"), str8_lit("\n")};
-  String8 file = rp_config_path(scratch.arena, str8_lit("recent_files"));
+  String8 file = rp_config_path(scratch.arena, str8_lit("sumi"), str8_lit("recent_files"));
   make_directory(str8_chop_last_slash(file));
   write_data_to_file_path(file, str8_list_join(scratch.arena, &lines, &join));
   scratch_end(scratch);
@@ -47,8 +48,9 @@ internal void
 rp_recent_load(RP_Panel *panel)
 {
   Temp scratch = scratch_begin(0, 0);
-  String8 data = data_from_file_path(scratch.arena, rp_config_path(scratch.arena, str8_lit("recent_files")));
-  if(data.size == 0) { data = data_from_file_path(scratch.arena, rp_config_path(scratch.arena, str8_lit("last_file"))); }
+  String8 data = data_from_file_path(scratch.arena, rp_config_path(scratch.arena, str8_lit("sumi"), str8_lit("recent_files")));
+  if(data.size == 0) { data = data_from_file_path(scratch.arena, rp_config_path(scratch.arena, str8_lit("mdview"), str8_lit("recent_files"))); }
+  if(data.size == 0) { data = data_from_file_path(scratch.arena, rp_config_path(scratch.arena, str8_lit("mdview"), str8_lit("last_file"))); }
   U8 splits[] = {'\n', '\r'};
   String8List lines = str8_split(scratch.arena, data, splits, ArrayCount(splits), 0);
   String8 *paths = push_array(scratch.arena, String8, RP_MAX_FILES);

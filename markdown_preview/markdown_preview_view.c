@@ -1173,7 +1173,7 @@ mdp_view_open_link(MDP_View *view, MDP_Geometry *g, String8 url, B32 alt)
 //~ Search (BufferSearchBar + SearchableItem)
 //
 // Zed searches the source and drops matches in markup that isn't rendered;
-// mdview searches the rendered text, which is what that leaves. Matches
+// Sumi searches the rendered text, which is what that leaves. Matches
 // highlight with `search_match_background`, the active one with
 // `search_active_match_background`, and activating one autoscrolls to it.
 //

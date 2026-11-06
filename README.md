@@ -1,23 +1,23 @@
-# mdview
+# Sumi
 
-A Markdown viewer that matches Zed's markdown preview, built on the
-[RAD Debugger](https://github.com/EpicGamesExt/raddebugger) UI layers.
+Sumi (墨, "ink") is a Markdown viewer that matches Zed's markdown preview, built
+on the [RAD Debugger](https://github.com/EpicGamesExt/raddebugger) UI layers.
 
 ## Download
 
 Builds for Windows and Linux are attached to each
-[release](../../releases) and to every CI run (Actions → build → Artifacts).
+[release](../../releases) and to every CI run (Actions → builds → Artifacts).
 Unzip and keep `data/` next to the executable: it holds the fonts and icons.
 
 ## Build
 
 ```sh
-git clone --recursive https://github.com/abishek77s/mdview
+git clone --recursive https://github.com/abishek77s/sumi
 ```
 
-Windows (MSVC): `build.bat release` → `build\mdview.exe`
+Windows: `build.bat release [msvc|clang]` → `build\sumi.exe`
 
-Linux: install the dev packages, then `./build.sh release` → `build/mdview`
+Linux: install the dev packages, then `./build.sh release [clang|gcc]` → `build/sumi`
 
 ```sh
 sudo apt install clang pkg-config libfreetype6-dev libx11-dev libxext-dev \

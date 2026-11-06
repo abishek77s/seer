@@ -285,8 +285,8 @@ md_http_get(Arena *arena, String8 url)
     MemoryCopy(host, parts.lpszHostName, parts.dwHostNameLength*sizeof(WCHAR));
     // the path runs on through the query to the end of the (fragment-less) URL
     WCHAR *path = (parts.lpszUrlPath && parts.dwUrlPathLength) ? parts.lpszUrlPath : L"/";
-    session = WinHttpOpen(L"mdview/1.0", WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY, WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
-    if(session == 0) { session = WinHttpOpen(L"mdview/1.0", WINHTTP_ACCESS_TYPE_DEFAULT_PROXY, WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0); }
+    session = WinHttpOpen(L"sumi/1.0", WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY, WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
+    if(session == 0) { session = WinHttpOpen(L"sumi/1.0", WINHTTP_ACCESS_TYPE_DEFAULT_PROXY, WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0); }
     if(session)
     {
       WinHttpSetTimeouts(session, 10000, 10000, 15000, 30000);
@@ -342,7 +342,7 @@ internal void
 md_download_thread(void *p)
 {
   MD_Download *d = (MD_Download *)p;
-  set_thread_name(str8_lit("[mdview] image download"));
+  set_thread_name(str8_lit("[sumi] image download"));
   Arena *arena = arena_alloc();
   String8 bytes = md_http_get(arena, d->url);
   MutexScope(md_download_mutex)

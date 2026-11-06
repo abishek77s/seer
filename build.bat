@@ -2,7 +2,7 @@
 setlocal
 cd /D "%~dp0"
 
-:: Builds mdview against the RAD Debugger sources, the way its build.bat does.
+:: Builds Sumi against the RAD Debugger sources, the way its build.bat does.
 :: Usage: build [debug|release] [msvc|clang]     (default: debug msvc)
 :: Uses the compiler from PATH, or finds the newest Visual Studio via vswhere.
 
@@ -22,14 +22,14 @@ set rad=
 if exist external\raddebugger\src\base\base_inc.h (set rad=external\raddebugger) else if exist ..\raddebugger\src\base\base_inc.h (set rad=..\raddebugger)
 if "%rad%"=="" (echo [error: RAD Debugger sources not found; run: git submodule update --init] & exit /b 1)
 
-:: Apply mdview's patches to it once.
+:: Apply Sumi's patches to it once.
 for %%p in (patches\*.patch) do (
     git -C %rad% apply --ignore-whitespace --check "%CD%\%%p" >nul 2>nul && git -C %rad% apply --ignore-whitespace "%CD%\%%p" && echo [applied %%p]
 )
 
 :: /MANIFEST:EMBED puts the Common-Controls v6 manifest inside the exe, as RAD
 :: Debugger's build does. Without it the manifest is a separate
-:: mdview.exe.manifest, and an exe copied without that file loads the old
+:: sumi.exe.manifest, and an exe copied without that file loads the old
 :: comctl32, which has no TaskDialogIndirect ("The ordinal 345 could not be
 :: located").
 set cl_common=/I..\%rad%\src /I.. /nologo /FC /Zc:preprocessor /W3 /wd4244 /wd4305 /wd4267 /wd4018 /wd4146
@@ -45,10 +45,10 @@ if not exist build mkdir build
 pushd build
 if "%clang%"=="1" (
     if "%release%"=="1" (set opts=%clang_release%) else (set opts=%clang_debug%)
-    call clang %%opts%% %clang_common% ..\mdview_main.c -fuse-ld=lld -Xlinker /MANIFEST:EMBED -Xlinker /INCREMENTAL:NO -Xlinker /SUBSYSTEM:WINDOWS -Xlinker /opt:ref -o mdview.exe || (popd & exit /b 1)
+    call clang %%opts%% %clang_common% ..\sumi_main.c -fuse-ld=lld -Xlinker /MANIFEST:EMBED -Xlinker /INCREMENTAL:NO -Xlinker /SUBSYSTEM:WINDOWS -Xlinker /opt:ref -o sumi.exe || (popd & exit /b 1)
 ) else (
     if "%release%"=="1" (set opts=%cl_release%& set linkopts=%cl_link_release%) else (set opts=%cl_debug%& set linkopts=%cl_link_debug%)
-    call cl %%opts%% %cl_common% ..\mdview_main.c /link %%linkopts%% /MANIFEST:EMBED /INCREMENTAL:NO /SUBSYSTEM:WINDOWS /out:mdview.exe || (popd & exit /b 1)
+    call cl %%opts%% %cl_common% ..\sumi_main.c /link %%linkopts%% /MANIFEST:EMBED /INCREMENTAL:NO /SUBSYSTEM:WINDOWS /out:sumi.exe || (popd & exit /b 1)
 )
 popd
-echo [built build\mdview.exe]
+echo [built build\sumi.exe]
